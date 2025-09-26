@@ -1,159 +1,127 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>NeoLite</title>
-  <style>
-    :root{
-      --bg:#eef1f5;
-      --card:#ffffff;
-      --fg:#0f172a;
-      --muted:#6b7280;
-      --border:#e2e8f0;
-      --pill:#eef2f7;
-      --accent:#111827;
-      --link:#2563eb;
-      --success:#10b981;
-      --highlight:#fff5a8;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; background:var(--bg); color:var(--fg);
-      font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;
-      display:flex; flex-direction:column;
-    }
-
-    /* Header (ChatGPT-ish) */
-    header{position:sticky; top:0; z-index:20; background:rgba(255,255,255,.7);
-      backdrop-filter:saturate(180%) blur(10px); border-bottom:1px solid var(--border)}
-    .h-inner{max-width:960px; margin:0 auto; padding:10px 16px;
-      display:flex; gap:10px; align-items:center; justify-content:space-between}
-    .brand{font-weight:700}
-    .toolbar{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-    select,.pill,button{border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--fg)}
-    select{padding:8px 12px; appearance:none}
-    .reasoning{background:#f3f4f6; color:#374151}
-    .pill{background:#fff; padding:6px 10px}
-    .pill.badge{background:var(--pill); color:#374151; border-color:var(--pill)}
-    .btn{padding:8px 12px; border-radius:12px; border:1px solid var(--border); background:#fff; cursor:pointer}
-    .btn.primary{background:var(--accent); color:#fff; border-color:var(--accent)}
-
-    main{flex:1; display:flex; justify-content:center; overflow:auto}
-    .container{width:min(960px,100%); padding:24px 16px 140px}
-
-    /* Bubbles */
-    .row{display:flex; gap:10px; margin:10px 0}
-    .row.user{justify-content:flex-end}
-    .row.ai{justify-content:flex-start}
-    .bubble{
-      max-width:85%; background:var(--card); border:1px solid var(--border);
-      border-radius:18px; padding:16px 18px; box-shadow:0 1px 2px rgba(0,0,0,.03)
-    }
-    .sys{background:#f3f4f6; color:#374151}
-    .msg{line-height:1.7}
-    .msg h1,.msg h2,.msg h3{margin:.6em 0 .3em; line-height:1.25}
-    .msg h1{font-size:1.35rem} .msg h2{font-size:1.2rem} .msg h3{font-size:1.08rem}
-    .msg ul{margin:.2em 0 .7em 1.2em} .msg li{margin:.15em 0}
-    .msg p{margin:.5em 0}
-    .msg strong{background:var(--highlight); padding:0 .2em; border-radius:.2em}
-    .msg code{background:#f7f7fb; border:1px solid var(--border); padding:.1em .35em; border-radius:6px}
-    a{color:var(--link); text-decoration:none} a:hover{text-decoration:underline}
-
-    /* Source pills */
-    .sources{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px}
-    .src-pill{font-size:12px; padding:4px 8px; border-radius:999px; background:#eef6ff; color:#1e40af; border:1px solid #bfdbfe}
-
-    /* Thinking panel (collapsible grey) */
-    details.think{background:#f8fafc; border:1px solid var(--border); border-radius:14px; padding:10px 12px; margin:8px 0 10px}
-    details.think>summary{cursor:pointer; color:#374151}
-    details.think pre{background:#fff; border:1px solid var(--border); border-radius:10px; padding:10px; overflow:auto}
-
-    /* Code embed */
-    .code-embed{border-radius:14px; border:1px solid var(--border); overflow:hidden; margin-top:10px}
-    .code-embed header{display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#fafafa; border-bottom:1px solid var(--border)}
-    .status{font-size:12px; color:var(--muted)}
-    pre.block{margin:0; padding:14px; overflow:auto; background:#fcfcfc}
-    pre.block code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; white-space:pre; word-break:normal}
-
-    /* Composer */
-    .composer{position:fixed; left:0; right:0; bottom:0;
-      background:linear-gradient(180deg, rgba(238,241,245,0), var(--bg) 14%), var(--bg);
-      border-top:1px solid var(--border)}
-    .c-inner{max-width:960px; margin:0 auto; padding:12px 16px}
-    .compose-row{display:flex; gap:10px; align-items:flex-end}
-    textarea{
-      flex:1; min-height:44px; max-height:180px; resize:vertical;
-      padding:12px 14px; border-radius:16px; border:1px solid var(--border); background:#fff
-    }
-    .actions{display:flex; gap:8px; align-items:center}
-
-    /* + menu & toggle (no glitch) */
-    .plus{width:40px; height:40px; border-radius:12px; border:1px solid var(--border);
-      display:grid; place-items:center; cursor:pointer; background:#fff}
-    .menu{position:absolute; bottom:58px; left:0; background:#fff; border:1px solid var(--border);
-      border-radius:14px; padding:10px; display:none; box-shadow:0 10px 30px rgba(0,0,0,.06)}
-    .menu.show{display:block}
-    .toggle{display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none}
-    .switch{position:relative; width:40px; height:22px; border-radius:999px; background:#e5e7eb; border:1px solid var(--border)}
-    .switch::after{content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; border:1px solid var(--border); transition:transform .18s}
-    .toggle input{display:none}
-    .toggle input:checked + .switch{background:#d1fae5; border-color:var(--success)}
-    .toggle input:checked + .switch::after{transform:translateX(18px)}
-    .hint{font-size:12px; color:var(--muted); margin-top:6px}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Neo.net – Build with AI</title>
+<style>
+:root{
+  --bg:#f3f5f8; --card:#fff; --fg:#0f172a; --muted:#6b7280; --border:#e2e8f0;
+  --pill:#eef2f7; --accent:#111827; --link:#2563eb; --ok:#10b981; --danger:#ef4444;
+}
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;display:flex;flex-direction:column}
+header{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.7);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+.h{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:10px;justify-content:space-between}
+.brand{font-weight:700}
+.badge{padding:6px 10px;background:var(--pill);border:1px solid var(--pill);border-radius:999px;color:#374151}
+main{flex:1;display:flex;justify-content:center;overflow:auto}
+.wrap{width:min(1100px,100%);padding:24px 16px 120px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.center{max-width:680px;margin:60px auto;padding:30px}
+h1{margin:0 0 6px} p{margin:8px 0 0;color:var(--muted)}
+.row{display:flex;gap:10px;margin-top:14px}
+.btn{padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;cursor:pointer}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.danger{border-color:var(--danger);color:#fff;background:var(--danger)}
+.input, textarea{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#fff}
+.grid{display:grid;grid-template-columns: 360px 1fr; gap:14px}
+.panel{padding:14px}
+.title{font-weight:600;margin:2px 0 10px}
+.tree{border:1px solid var(--border);border-radius:12px;padding:10px;max-height:380px;overflow:auto}
+.item{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px}
+.item:hover{background:#f6f7fb}
+.small{font-size:12px;color:var(--muted)}
+.editor{display:flex;flex-direction:column;gap:8px}
+textarea.editorbox{height:240px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.iframewrap{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
+.iframewrap header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border)}
+.sources{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.src-pill{font-size:12px;padding:4px 8px;border-radius:999px;background:#eef6ff;color:#1e40af;border:1px solid #bfdbfe}
+.think{background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:10px}
+.think summary{cursor:pointer}
+.hidden{display:none}
+</style>
 </head>
 <body>
-  <header>
-    <div class="h-inner">
-      <div class="brand">🧠 NeoLite</div>
-      <div class="toolbar">
-        <select id="model">
-          <option value="openai/gpt-oss-120b" selected>NeoLite-Instant</option>
-          <option value="openai/gpt-4o-mini">NeoLite-Thinking</option>
-          <option value="openai/gpt-4o-reasoner">NeoLite-MultiTasking</option>
-        </select>
-        <select id="reason" class="reasoning">
-          <option value="low">Reasoning: Low</option>
-          <option value="medium" selected>Reasoning: Medium</option>
-          <option value="high">Reasoning: High</option>
-        </select>
-        <span id="webBadge" class="pill badge" title="Web Search status">Web Search: Off</span>
-        <button id="clean" class="pill" title="Start new chat">🧼 Clean</button>
-      </div>
-    </div>
-  </header>
-
-  <main>
-    <div class="container" id="chat">
-      <div class="bubble sys">New chat. Use the <b>+</b> to enable Web Search.</div>
-    </div>
-  </main>
-
-  <div class="composer">
-    <div class="c-inner">
-      <div class="compose-row">
-        <div style="position:relative">
-          <button class="plus" id="plus" title="More">+</button>
-          <div class="menu" id="plusMenu">
-            <label class="toggle">
-              <input id="webToggle" type="checkbox" />
-              <span class="switch"></span>
-              <span>Web Search</span>
-            </label>
-          </div>
-        </div>
-        <textarea id="input" placeholder="Ask anything…"></textarea>
-        <div class="actions">
-          <button class="btn" id="stop" style="display:none">Stop</button>
-          <button class="btn primary" id="send">Send</button>
-        </div>
-      </div>
-      <div class="hint">Tip: <b>🧼 Clean</b> starts a fresh chat. Bold text is softly highlighted for scannability.</div>
+<header>
+  <div class="h">
+    <div class="brand">🧠 Neo.net</div>
+    <div>
+      <span id="gitBadge" class="badge">Git: Not connected</span>
+      <button id="logout" class="btn hidden">Logout</button>
     </div>
   </div>
+</header>
 
-  <script src="./app.js"></script>
+<main>
+  <div class="wrap">
+    <!-- Landing -->
+    <div id="landing" class="card center">
+      <h1>Build your dream app with Neo.net</h1>
+      <p>Connect GitHub. Describe what you want. Neo will scaffold files, edit them, and commit. Your Pages deploy picks it up automatically.</p>
+      <div class="row">
+        <button id="connect" class="btn primary">Connect your GitHub</button>
+      </div>
+      <p class="small">We ask permission to read/write a repo you choose. You can revoke anytime.</p>
+    </div>
+
+    <!-- Builder -->
+    <div id="builder" class="card hidden">
+      <div class="panel">
+        <div class="split">
+          <div>
+            <div class="title">Prompt</div>
+            <textarea id="prompt" class="input" placeholder="Describe your app. Include stack, pages, and any APIs."></textarea>
+            <details class="think" style="margin-top:10px">
+              <summary>Reasoning (auto plan)</summary>
+              <pre id="plan" style="white-space:pre-wrap;margin:0"></pre>
+            </details>
+            <div class="sources" id="srcBar"></div>
+            <div class="row">
+              <button id="generate" class="btn primary">Generate</button>
+              <button id="saveAll" class="btn">Commit changes</button>
+            </div>
+          </div>
+          <div>
+            <div class="title">Select repository</div>
+            <div class="row">
+              <select id="repoList" class="input"></select>
+              <button id="newRepo" class="btn">New Repo</button>
+            </div>
+            <div class="grid" style="grid-template-columns:1fr">
+              <div>
+                <div class="title">Files</div>
+                <div id="tree" class="tree"></div>
+              </div>
+              <div class="editor">
+                <div class="title">Editor</div>
+                <input id="path" class="input" placeholder="path/to/file.ext" />
+                <textarea id="source" class="editorbox"></textarea>
+                <div class="row">
+                  <button id="createFile" class="btn">Create/Update</button>
+                  <button id="deleteFile" class="btn danger">Delete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
+
+        <div class="iframewrap">
+          <header>
+            <div>Preview</div>
+            <div class="small">Auto-reloads after commit (once your Pages build finishes)</div>
+          </header>
+          <iframe id="preview" src="about:blank" style="width:100%;height:380px;border:0"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="./app.js"></script>
 </body>
 </html>
