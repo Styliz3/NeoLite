@@ -1,24 +1,9 @@
-// Path must be: /functions/api/chat.js  (repo root, Git Pages project)
-// POST /api/chat
+// /functions/api/chat.js  (must exist to avoid 404)
 export const onRequestPost = async ({ request, env }) => {
   const apiKey = env.GROQ_API_KEY;
   if (!apiKey) return new Response("GROQ_API_KEY is missing", { status: 500 });
 
-  const { model, messages, temperature = 1, top_p = 1, stream = true, web_search = false } =
-    await request.json();
-
-  const tools = web_search ? [{ type: "browser_search" }] : [];
-
-  const payload = {
-    model,
-    messages,
-    temperature,
-    top_p,
-    max_completion_tokens: 8192,
-    stream,
-    stop: null,
-    tools
-  };
+  const body = await request.json();
 
   const upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -26,10 +11,9 @@ export const onRequestPost = async ({ request, env }) => {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(body)
   });
 
-  // Pass-through SSE/JSON (including 429s so the client can show a message)
   return new Response(upstream.body, {
     status: upstream.status,
     headers: {
