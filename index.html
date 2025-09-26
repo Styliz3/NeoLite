@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <style>
 :root{
-  --bg:#f3f5f8; --card:#fff; --fg:#0f172a; --muted:#6b7280; --border:#e2e8f0;
+  --bg:#eef2f6; --card:#fff; --fg:#0f172a; --muted:#6b7280; --border:#e2e8f0;
   --pill:#eef2f7; --accent:#111827; --link:#2563eb; --ok:#10b981; --danger:#ef4444;
 }
 *{box-sizing:border-box} html,body{height:100%}
@@ -16,27 +16,37 @@ header{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.7);backdrop
 .h{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:10px;justify-content:space-between}
 .brand{font-weight:700}
 .badge{padding:6px 10px;background:var(--pill);border:1px solid var(--pill);border-radius:999px;color:#374151}
+
 main{flex:1;display:flex;justify-content:center;overflow:auto}
 .wrap{width:min(1100px,100%);padding:24px 16px 120px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-.center{max-width:880px;margin:20px auto;padding:18px}
-h1{margin:0 0 6px} p{margin:8px 0 0;color:var(--muted)}
-.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+
+/* HERO prompt centered */
+.hero{display:grid;place-items:center;margin:40px 0}
+.hero-card{max-width:820px;width:100%;background:var(--card);border:1px solid var(--border);border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.05);padding:22px}
+.hero-title{font-weight:800;letter-spacing:.2px;text-align:center;margin:6px 0 14px}
+.hero-sub{color:var(--muted);text-align:center;margin:0 0 16px}
+.hero-input{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:14px;padding:8px 10px;background:#fff}
+.hero-input textarea{flex:1;min-height:24px;max-height:140px;resize:vertical;border:0;outline:0;font:16px/1.4 inherit}
+.star{flex:0 0 auto;width:42px;height:42px;display:grid;place-items:center;border-radius:11px;border:1px solid var(--border);background:#fff;cursor:pointer}
+.star:hover{box-shadow:0 4px 14px rgba(0,0,0,.06)}
+.cta{margin-top:10px;display:flex;gap:10px;justify-content:center}
 .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;cursor:pointer}
 .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.btn.danger{border-color:var(--danger);color:#fff;background:var(--danger)}
-.btn.ok{border-color:var(--ok);color:#fff;background:var(--ok)}
-.input, textarea{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#fff}
-.grid{display:grid;grid-template-columns: 360px 1fr; gap:14px}
+.btn.ok{border-color:var(--ok);background:var(--ok);color:#fff}
+
+/* Panels */
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
 .panel{padding:14px}
+.grid{display:grid;grid-template-columns: 360px 1fr; gap:14px}
 .title{font-weight:600;margin:2px 0 10px}
+.small{font-size:12px;color:var(--muted)}
 .tree{border:1px solid var(--border);border-radius:12px;padding:10px;max-height:380px;overflow:auto;background:#fff}
 .item{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px;cursor:pointer}
 .item:hover{background:#f6f7fb}
-.small{font-size:12px;color:var(--muted)}
 .editor{display:flex;flex-direction:column;gap:8px}
+input, textarea{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#fff}
 textarea.editorbox{height:260px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
 .iframewrap{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
 .iframewrap header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border)}
 .console{background:#0b1220;color:#e5e7eb;border-radius:12px;border:1px solid var(--border);padding:10px;min-height:120px;font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap}
@@ -44,72 +54,73 @@ textarea.editorbox{height:260px;font-family:ui-monospace,SFMono-Regular,Menlo,Co
 .src-pill{font-size:12px;padding:4px 8px;border-radius:999px;background:#eef6ff;color:#1e40af;border:1px solid #bfdbfe}
 .think{background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:10px}
 .think summary{cursor:pointer}
-.hidden{display:none}
 hr.sep{border:0;border-top:1px solid var(--border);margin:12px 0}
+
+.toast{position:fixed;inset:auto 16px 16px auto;background:#111827;color:#fff;padding:10px 12px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);font-size:13px;display:none}
+.toast.show{display:block}
 </style>
 </head>
 <body>
 <header>
   <div class="h">
     <div class="brand">🧠 Neo.net (Test Mode)</div>
-    <div>
-      <span class="badge">Local project (zip export)</span>
-    </div>
+    <div><span class="badge">Local project • Zip export</span></div>
   </div>
 </header>
 
 <main>
   <div class="wrap">
-    <div class="card center">
-      <h1>Build your app locally</h1>
-      <p>Prototype without GitHub. Create/edit files, preview instantly, run Python with Pyodide, and download everything as a ZIP.</p>
-    </div>
 
+    <!-- HERO CENTERED PROMPT -->
+    <section class="hero">
+      <div class="hero-card">
+        <div class="hero-title">Build your app with Neo.net</div>
+        <div class="hero-sub">Describe your idea. Click the ⭐ to start. No sign-in needed.</div>
+        <div class="hero-input">
+          <textarea id="prompt" placeholder="e.g., A todo app with HTML + Tailwind + JS, dark mode, and localStorage"></textarea>
+          <button id="starGo" class="star" title="Generate">⭐</button>
+        </div>
+        <div class="cta">
+          <button id="generate" class="btn primary">Generate</button>
+          <button id="downloadZip" class="btn ok">Download ZIP</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- BUILDER PANELS -->
     <div class="card">
       <div class="panel">
-        <div class="split">
-          <div>
-            <div class="title">Prompt</div>
-            <textarea id="prompt" class="input" placeholder="Describe your app (stack, pages, features)..."></textarea>
-            <details class="think" style="margin-top:10px">
-              <summary>Reasoning (auto plan)</summary>
-              <pre id="plan" style="white-space:pre-wrap;margin:0"></pre>
-            </details>
-            <div class="sources" id="srcBar"></div>
-            <div class="row">
-              <button id="generate" class="btn primary">Generate with AI</button>
-              <button id="downloadZip" class="btn ok">Download ZIP</button>
-              <button id="launch" class="btn">Launch / Preview</button>
-            </div>
-          </div>
+        <details class="think">
+          <summary>Reasoning (auto plan)</summary>
+          <pre id="plan" style="white-space:pre-wrap;margin:0"></pre>
+        </details>
+        <div class="sources" id="srcBar"></div>
 
+        <div class="grid" style="grid-template-columns: 360px 1fr">
           <div>
-            <div class="grid" style="grid-template-columns:1fr">
-              <div>
-                <div class="title">Files</div>
-                <div id="tree" class="tree"></div>
-              </div>
-              <div class="editor">
-                <div class="title">Editor</div>
-                <input id="path" class="input" placeholder="path/to/file.ext" />
-                <textarea id="source" class="editorbox"></textarea>
-                <div class="row">
-                  <button id="createFile" class="btn">Create/Update</button>
-                  <button id="deleteFile" class="btn danger">Delete</button>
-                  <button id="newIndex" class="btn">Quick index.html</button>
-                </div>
-              </div>
+            <div class="title">Files</div>
+            <div id="tree" class="tree"></div>
+          </div>
+          <div class="editor">
+            <div class="title">Editor</div>
+            <input id="path" placeholder="path/to/file.ext" />
+            <textarea id="source" class="editorbox"></textarea>
+            <div class="row">
+              <button id="createFile" class="btn">Create/Update</button>
+              <button id="deleteFile" class="btn" style="border-color:var(--danger);color:#fff;background:var(--danger)">Delete</button>
+              <button id="newIndex" class="btn">Quick index.html</button>
+              <button id="launch" class="btn">Launch / Preview</button>
             </div>
           </div>
         </div>
 
         <hr class="sep"/>
 
-        <div class="split">
+        <div class="grid" style="grid-template-columns: 1fr 1fr">
           <div class="iframewrap">
             <header>
               <div>Web Preview</div>
-              <div class="small">Renders <code>index.html</code> (if present)</div>
+              <div class="small">Renders <code>index.html</code></div>
             </header>
             <iframe id="preview" src="about:blank" style="width:100%;height:360px;border:0"></iframe>
           </div>
@@ -119,17 +130,19 @@ hr.sep{border:0;border-top:1px solid var(--border);margin:12px 0}
             <div class="row">
               <button id="runPy" class="btn">Run main.py (Pyodide)</button>
               <button id="runJs" class="btn">Run script.js (Sandbox)</button>
-              <span class="small">Outputs go to the console</span>
             </div>
           </div>
         </div>
 
       </div>
     </div>
+
   </div>
 </main>
 
-<!-- ZIP + (lazy) Pyodide -->
+<div id="toast" class="toast"></div>
+
+<!-- ZIP + app code -->
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="./app.js"></script>
 </body>
