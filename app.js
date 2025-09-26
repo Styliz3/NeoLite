@@ -7,7 +7,7 @@ const plusMenu = $("#plusMenu");
 const webToggle = $("#webToggle");
 const webBadge = $("#webBadge");
 const modelSel = $("#model");
-const reasonSel = $("#reason");
+const reasonSel = $("#reason"); // now controls local planner intensity only
 const sendBtn = $("#send");
 const stopBtn = $("#stop");
 const cleanBtn = $("#clean");
@@ -17,22 +17,15 @@ let messages = [];
 
 // Minimal Markdown → HTML (headings, bold, italics, lists, inline code, links)
 function md(html) {
-  let t = html
-    // escape
-    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  // headings
+  let t = html.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   t = t.replace(/^### (.*)$/gm, "<h3>$1</h3>")
        .replace(/^## (.*)$/gm, "<h2>$1</h2>")
        .replace(/^# (.*)$/gm, "<h1>$1</h1>");
-  // lists
   t = t.replace(/^\s*[-*] (.*)$/gm, "<li>$1</li>").replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
-  // bold/italic/inline code
   t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
        .replace(/\*(.+?)\*/g, "<em>$1</em>")
        .replace(/`([^`]+?)`/g, "<code>$1</code>");
-  // links [t](url)
   t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" rel="noopener">$1</a>`);
-  // paragraphs
   t = t.split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, "<br/>")}</p>`).join("");
   return t;
 }
@@ -86,24 +79,41 @@ cleanBtn.addEventListener("click", () => {
   chatEl.innerHTML = `<div class="bubble sys">New chat. Use the <b>+</b> to enable Web Search.</div>`;
 });
 
-// “Advanced Thinking” instruction wrapper (client-side planner)
-function wrapThinkingPrompt(userText) {
-  // Ask the model to structure its output; we’ll show PLAN in the grey panel.
-  const system = {
-    role: "system",
-    content:
-`You are NeoLite, an elite coding assistant.
-When THINKING mode is on, first create a short structured plan:
-<PLAN>
-- Summary (one line)
-- Steps (numbered, concise)
-</PLAN>
-Then reply with clear Markdown for humans.
-If you include runnable code, use fenced blocks.
-Keep links explicit (markdown or full URLs).`
-  };
-  return { system, user: { role:"user", content:userText } };
+// ---------- Local “Advanced Thinking” (client-only planner) ----------
+function localPlan(text, level = "medium") {
+  // naive verb-first decomposition, tuned for coding tasks
+  const maxSteps = level === "high" ? 8 : level === "low" ? 4 : 6;
+  // normalize
+  const sents = text
+    .replace(/[\r\n]+/g, " ")
+    .split(/(?<=[.!?])\s+/)
+    .filter(Boolean)
+    .slice(0, 5);
+
+  const verbs = ["design","plan","create","build","code","implement","write","refactor","debug","test","document","optimize","deploy","style","render","stream","fetch","parse","validate"];
+  const steps = [];
+  for (const s of sents) {
+    // pull inline actions
+    const parts = s.split(/,\s*|;\s*| and /i);
+    for (let p of parts) {
+      p = p.trim();
+      const v = verbs.find(vb => new RegExp(`\\b${vb}(?:ing|ed)?\\b`, "i").test(p));
+      if (v) steps.push(p.replace(/^\d+\.\s*/,""));
+    }
+  }
+  // backfill generic flow if empty
+  if (!steps.length) {
+    steps.push("Clarify requirements and inputs",
+               "Sketch data structures and API shape",
+               "Implement core logic in small functions",
+               "Add minimal UI and wire up events",
+               "Test with examples and edge cases",
+               "Polish, document, and ship");
+  }
+  return steps.slice(0, maxSteps);
 }
+
+// --------------------------------------------------------------------
 
 async function send() {
   const content = input.value.trim();
@@ -116,19 +126,18 @@ async function send() {
   addBubble("user", u);
   messages.push({ role: "user", content });
 
-  // AI bubble (text + sources + optional think panel + lazy code)
+  // AI bubble (sources + optional think + text; code added lazily)
   const aiNode = document.createElement("div");
   const sourcesBar = mkSourcesBar();
   const msgDiv = document.createElement("div");
   msgDiv.className = "msg";
   aiNode.appendChild(sourcesBar);
 
-  // show thinking panel only for “Thinking” or “MultiTasking” models
-  let think = null;
-  if (modelSel.value !== "openai/gpt-oss-120b") {
-    think = thinkPanel();
-    aiNode.appendChild(think);
-  }
+  // Always show our local planner (no Groq reasoning)
+  const plan = localPlan(content, reasonSel.value);
+  const think = thinkPanel();
+  think.querySelector("code").textContent = ["- " + plan.join("\n- ")].join("\n");
+  aiNode.appendChild(think);
 
   aiNode.appendChild(msgDiv);
   addBubble("ai", aiNode);
@@ -142,18 +151,12 @@ async function send() {
   sendBtn.disabled = true; stopBtn.style.display = "inline-block";
   abortCtrl = new AbortController();
 
-  // If in advanced modes, prepend a planning system message.
-  let bodyMessages = [...messages];
-  if (think) {
-    const { system } = wrapThinkingPrompt(content);
-    bodyMessages = [system, ...messages];
-  }
-
   const body = {
     model: modelSel.value,
-    reasoning_effort: reasonSel.value,
+    // no reasoning_effort at all
+    // web search still available
     web_search: webToggle.checked,
-    messages: bodyMessages,
+    messages,
     temperature: 1,
     top_p: 1,
     stream: true
@@ -168,9 +171,14 @@ async function send() {
     });
 
     if (!res.ok || !res.body) {
-      const tip = res.status === 404
-        ? "Server function not found (404). Ensure repo has /functions/api/chat.js at root and redeploy the production branch."
-        : `Request failed: ${res.status}`;
+      let tip;
+      if (res.status === 404) {
+        tip = "Server function not found (404). You must deploy a Git-based Pages project with /functions/api/chat.js at repo root.";
+      } else if (res.status === 429) {
+        tip = "Too many requests (429) to the upstream API. Slow down or check Groq rate limits.";
+      } else {
+        tip = `Request failed: ${res.status}`;
+      }
       addBubble("sys", tip);
       throw new Error(tip);
     }
@@ -178,7 +186,6 @@ async function send() {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    let thinkBuf = ""; // capture <PLAN>…</PLAN> for the grey panel
 
     const pushLinksFrom = (text) => {
       const urlRegex = /\bhttps?:\/\/[^\s)]+/g;
@@ -225,21 +232,10 @@ async function send() {
           const delta = json.choices?.[0]?.delta?.content || "";
           if (!delta) continue;
 
-          // capture PLAN for the grey panel if present
-          if (think) {
-            thinkBuf += delta;
-            const open = thinkBuf.indexOf("<PLAN>");
-            const close = thinkBuf.indexOf("</PLAN>");
-            if (open !== -1 && close !== -1) {
-              const inner = thinkBuf.slice(open + 6, close).trim();
-              think.querySelector("code").textContent = inner || "No plan.";
-            }
-          }
-
-          // link pills
+          // source bubbles
           pushLinksFrom(delta);
 
-          // handle code fences lazily
+          // code fences
           if (delta.includes("```")) {
             if (!inCode) {
               inCode = true;
@@ -261,8 +257,6 @@ async function send() {
             codeWrap.querySelector(".status").textContent = "Writing…";
             codeNode.textContent += delta;
           } else {
-            // stream markdown-ish text
-            // do a cheap append: convert only the latest chunk safely
             msgDiv.innerHTML += md(delta);
           }
         } catch {}
@@ -273,7 +267,7 @@ async function send() {
       msgDiv.textContent + (codeNode ? ("\n" + codeNode.textContent) : "");
     messages.push({ role: "assistant", content: finalText.trim() });
   } catch (e) {
-    // surfaced via sys bubble already
+    // already surfaced via sys bubble
   } finally {
     sendBtn.disabled = false; stopBtn.style.display = "none"; input.value = "";
     abortCtrl = null;
