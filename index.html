@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Neo.net – Build with AI</title>
+<title>Neo.net – Test Mode</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <style>
 :root{
   --bg:#f3f5f8; --card:#fff; --fg:#0f172a; --muted:#6b7280; --border:#e2e8f0;
@@ -18,78 +19,71 @@ header{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.7);backdrop
 main{flex:1;display:flex;justify-content:center;overflow:auto}
 .wrap{width:min(1100px,100%);padding:24px 16px 120px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-.center{max-width:680px;margin:60px auto;padding:30px}
+.center{max-width:880px;margin:20px auto;padding:18px}
 h1{margin:0 0 6px} p{margin:8px 0 0;color:var(--muted)}
-.row{display:flex;gap:10px;margin-top:14px}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
 .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;cursor:pointer}
 .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
 .btn.danger{border-color:var(--danger);color:#fff;background:var(--danger)}
+.btn.ok{border-color:var(--ok);color:#fff;background:var(--ok)}
 .input, textarea{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#fff}
 .grid{display:grid;grid-template-columns: 360px 1fr; gap:14px}
 .panel{padding:14px}
 .title{font-weight:600;margin:2px 0 10px}
-.tree{border:1px solid var(--border);border-radius:12px;padding:10px;max-height:380px;overflow:auto}
-.item{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px}
+.tree{border:1px solid var(--border);border-radius:12px;padding:10px;max-height:380px;overflow:auto;background:#fff}
+.item{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px;cursor:pointer}
 .item:hover{background:#f6f7fb}
 .small{font-size:12px;color:var(--muted)}
 .editor{display:flex;flex-direction:column;gap:8px}
-textarea.editorbox{height:240px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+textarea.editorbox{height:260px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .iframewrap{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
 .iframewrap header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border)}
+.console{background:#0b1220;color:#e5e7eb;border-radius:12px;border:1px solid var(--border);padding:10px;min-height:120px;font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap}
 .sources{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .src-pill{font-size:12px;padding:4px 8px;border-radius:999px;background:#eef6ff;color:#1e40af;border:1px solid #bfdbfe}
 .think{background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:10px}
 .think summary{cursor:pointer}
 .hidden{display:none}
+hr.sep{border:0;border-top:1px solid var(--border);margin:12px 0}
 </style>
 </head>
 <body>
 <header>
   <div class="h">
-    <div class="brand">🧠 Neo.net</div>
+    <div class="brand">🧠 Neo.net (Test Mode)</div>
     <div>
-      <span id="gitBadge" class="badge">Git: Not connected</span>
-      <button id="logout" class="btn hidden">Logout</button>
+      <span class="badge">Local project (zip export)</span>
     </div>
   </div>
 </header>
 
 <main>
   <div class="wrap">
-    <!-- Landing -->
-    <div id="landing" class="card center">
-      <h1>Build your dream app with Neo.net</h1>
-      <p>Connect GitHub. Describe what you want. Neo will scaffold files, edit them, and commit. Your Pages deploy picks it up automatically.</p>
-      <div class="row">
-        <button id="connect" class="btn primary">Connect your GitHub</button>
-      </div>
-      <p class="small">We ask permission to read/write a repo you choose. You can revoke anytime.</p>
+    <div class="card center">
+      <h1>Build your app locally</h1>
+      <p>Prototype without GitHub. Create/edit files, preview instantly, run Python with Pyodide, and download everything as a ZIP.</p>
     </div>
 
-    <!-- Builder -->
-    <div id="builder" class="card hidden">
+    <div class="card">
       <div class="panel">
         <div class="split">
           <div>
             <div class="title">Prompt</div>
-            <textarea id="prompt" class="input" placeholder="Describe your app. Include stack, pages, and any APIs."></textarea>
+            <textarea id="prompt" class="input" placeholder="Describe your app (stack, pages, features)..."></textarea>
             <details class="think" style="margin-top:10px">
               <summary>Reasoning (auto plan)</summary>
               <pre id="plan" style="white-space:pre-wrap;margin:0"></pre>
             </details>
             <div class="sources" id="srcBar"></div>
             <div class="row">
-              <button id="generate" class="btn primary">Generate</button>
-              <button id="saveAll" class="btn">Commit changes</button>
+              <button id="generate" class="btn primary">Generate with AI</button>
+              <button id="downloadZip" class="btn ok">Download ZIP</button>
+              <button id="launch" class="btn">Launch / Preview</button>
             </div>
           </div>
+
           <div>
-            <div class="title">Select repository</div>
-            <div class="row">
-              <select id="repoList" class="input"></select>
-              <button id="newRepo" class="btn">New Repo</button>
-            </div>
             <div class="grid" style="grid-template-columns:1fr">
               <div>
                 <div class="title">Files</div>
@@ -102,26 +96,41 @@ textarea.editorbox{height:240px;font-family:ui-monospace,SFMono-Regular,Menlo,Co
                 <div class="row">
                   <button id="createFile" class="btn">Create/Update</button>
                   <button id="deleteFile" class="btn danger">Delete</button>
+                  <button id="newIndex" class="btn">Quick index.html</button>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div style="height:14px"></div>
+        <hr class="sep"/>
 
-        <div class="iframewrap">
-          <header>
-            <div>Preview</div>
-            <div class="small">Auto-reloads after commit (once your Pages build finishes)</div>
-          </header>
-          <iframe id="preview" src="about:blank" style="width:100%;height:380px;border:0"></iframe>
+        <div class="split">
+          <div class="iframewrap">
+            <header>
+              <div>Web Preview</div>
+              <div class="small">Renders <code>index.html</code> (if present)</div>
+            </header>
+            <iframe id="preview" src="about:blank" style="width:100%;height:360px;border:0"></iframe>
+          </div>
+          <div>
+            <div class="title">Runtime Console</div>
+            <div id="console" class="console"></div>
+            <div class="row">
+              <button id="runPy" class="btn">Run main.py (Pyodide)</button>
+              <button id="runJs" class="btn">Run script.js (Sandbox)</button>
+              <span class="small">Outputs go to the console</span>
+            </div>
+          </div>
         </div>
+
       </div>
     </div>
   </div>
 </main>
 
+<!-- ZIP + (lazy) Pyodide -->
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="./app.js"></script>
 </body>
 </html>
