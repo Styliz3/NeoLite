@@ -1,18 +1,11 @@
-// Path must be: /functions/api/chat.js  (repo root)
-// Exposes POST /api/chat
+// Path must be: /functions/api/chat.js  (repo root, Git Pages project)
+// POST /api/chat
 export const onRequestPost = async ({ request, env }) => {
   const apiKey = env.GROQ_API_KEY;
   if (!apiKey) return new Response("GROQ_API_KEY is missing", { status: 500 });
 
-  const {
-    model,
-    messages,
-    temperature = 1,
-    top_p = 1,
-    stream = true,
-    reasoning_effort = "medium",
-    web_search = false
-  } = await request.json();
+  const { model, messages, temperature = 1, top_p = 1, stream = true, web_search = false } =
+    await request.json();
 
   const tools = web_search ? [{ type: "browser_search" }] : [];
 
@@ -23,7 +16,6 @@ export const onRequestPost = async ({ request, env }) => {
     top_p,
     max_completion_tokens: 8192,
     stream,
-    reasoning_effort,
     stop: null,
     tools
   };
@@ -37,6 +29,7 @@ export const onRequestPost = async ({ request, env }) => {
     body: JSON.stringify(payload)
   });
 
+  // Pass-through SSE/JSON (including 429s so the client can show a message)
   return new Response(upstream.body, {
     status: upstream.status,
     headers: {
