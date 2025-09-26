@@ -1,281 +1,165 @@
-// Helpers
-const $ = (q) => document.querySelector(q);
-const chatEl = $("#chat");
-const input = $("#input");
-const plus = $("#plus");
-const plusMenu = $("#plusMenu");
-const webToggle = $("#webToggle");
-const webBadge = $("#webBadge");
-const modelSel = $("#model");
-const reasonSel = $("#reason"); // now controls local planner intensity only
-const sendBtn = $("#send");
-const stopBtn = $("#stop");
-const cleanBtn = $("#clean");
+const $ = (q)=>document.querySelector(q);
+const landing=$("#landing"), builder=$("#builder");
+const connect=$("#connect"), logout=$("#logout"), gitBadge=$("#gitBadge");
+const repoList=$("#repoList"), newRepo=$("#newRepo");
+const tree=$("#tree"), pathEl=$("#path"), srcEl=$("#source");
+const createFile=$("#createFile"), deleteFile=$("#deleteFile"), saveAll=$("#saveAll");
+const promptEl=$("#prompt"), generate=$("#generate"), planEl=$("#plan");
+const srcBar=$("#srcBar"), preview=$("#preview");
 
-let abortCtrl = null;
-let messages = [];
+let gh = { token:null, user:null, repo:null, defaultBranch:"main", pending: new Map() };
 
-// Minimal Markdown → HTML (headings, bold, italics, lists, inline code, links)
-function md(html) {
-  let t = html.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  t = t.replace(/^### (.*)$/gm, "<h3>$1</h3>")
-       .replace(/^## (.*)$/gm, "<h2>$1</h2>")
-       .replace(/^# (.*)$/gm, "<h1>$1</h1>");
-  t = t.replace(/^\s*[-*] (.*)$/gm, "<li>$1</li>").replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
-  t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-       .replace(/\*(.+?)\*/g, "<em>$1</em>")
-       .replace(/`([^`]+?)`/g, "<code>$1</code>");
-  t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" rel="noopener">$1</a>`);
-  t = t.split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, "<br/>")}</p>`).join("");
-  return t;
+function show(el, yes){ el.classList.toggle("hidden", !yes); }
+function mdPlan(prompt){
+  // tiny deterministic planner to guide coding steps
+  const base = [
+    "Clarify requirements & constraints",
+    "Choose stack & directory structure",
+    "Scaffold pages/components",
+    "Implement core logic & API calls",
+    "Wire UI events and state",
+    "Add preview route and static index",
+    "Commit & deploy"
+  ];
+  const lines = ["• " + base.join("\n• ")];
+  planEl.textContent = lines.join("\n");
 }
 
-function addBubble(role, nodeOrHTML) {
-  const row = document.createElement("div");
-  row.className = `row ${role}`;
-  const b = document.createElement("div");
-  b.className = `bubble ${role === "sys" ? "sys" : ""}`;
-  if (typeof nodeOrHTML === "string") b.innerHTML = nodeOrHTML; else b.appendChild(nodeOrHTML);
-  row.appendChild(b);
-  chatEl.appendChild(row);
-  chatEl.parentElement.scrollTop = chatEl.parentElement.scrollHeight;
-  return b;
+// --- OAuth ---
+async function getMe(){
+  const r = await fetch("/api/github?action=me"); 
+  if(!r.ok) return null;
+  return r.json();
 }
+async function login(){ window.location.href="/api/github?action=login"; }
+async function logoutFn(){ await fetch("/api/github?action=logout",{method:"POST"}); location.reload(); }
 
-function mkSourcesBar() {
-  const s = document.createElement("div");
-  s.className = "sources";
-  return s;
+// --- Repo & files ---
+async function listRepos(){
+  const r = await fetch("/api/github?action=repos");
+  const js = await r.json();
+  repoList.innerHTML = "";
+  js.forEach(x=>{
+    const o=document.createElement("option");
+    o.value = x.full_name; o.textContent = x.full_name;
+    repoList.appendChild(o);
+  });
+  if (js[0]) { repoList.value = js[0].full_name; gh.repo = js[0].full_name; loadTree(); }
 }
-
-function codeEmbed(title = "Coding") {
-  const wrap = document.createElement("div");
-  wrap.className = "code-embed";
-  wrap.innerHTML = `<header><strong>${title}</strong><span class="status">Writing…</span></header><pre class="block"><code></code></pre>`;
-  return wrap;
+async function createNewRepo(){
+  const name = prompt("New repo name (will be public):","neo-app");
+  if(!name) return;
+  await fetch("/api/github?action=createRepo",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});
+  await listRepos();
 }
+repoList.addEventListener("change", ()=>{ gh.repo=repoList.value; loadTree(); });
 
-function thinkPanel() {
-  const d = document.createElement("details");
-  d.className = "think";
-  d.innerHTML = `<summary>Reasoning (advanced)</summary><pre><code>planning…</code></pre>`;
-  return d;
+async function loadTree(){
+  tree.innerHTML="";
+  const r = await fetch(`/api/github?action=list&repo=${encodeURIComponent(gh.repo)}&path=`);
+  const js = await r.json();
+  renderTree(js);
+  // set preview to the Cloudflare site if you deploy this repo; placeholder otherwise:
+  preview.src = "about:blank";
 }
-
-function setWebBadge() {
-  webBadge.textContent = `Web Search: ${webToggle.checked ? "On" : "Off"}`;
+function renderTree(items){
+  tree.innerHTML="";
+  items.forEach(it=>{
+    const row=document.createElement("div"); row.className="item";
+    const left=document.createElement("div"); left.textContent=it.path;
+    const right=document.createElement("div"); right.className="small"; right.textContent=it.type;
+    row.append(left,right);
+    row.onclick = ()=> openFile(it.path);
+    tree.append(row);
+  });
 }
-setWebBadge();
+async function openFile(p){
+  const r = await fetch(`/api/github?action=get&repo=${encodeURIComponent(gh.repo)}&path=${encodeURIComponent(p)}`);
+  const js = await r.json();
+  pathEl.value = p; srcEl.value = js.content || "";
+}
+async function saveFile(){
+  const p = pathEl.value.trim(); if(!p) return alert("Path required");
+  const content = srcEl.value;
+  await fetch(`/api/github?action=put&repo=${encodeURIComponent(gh.repo)}`,{
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({path:p, content})
+  });
+  await loadTree();
+}
+async function removeFile(){
+  const p = pathEl.value.trim(); if(!p) return;
+  if(!confirm("Delete file?")) return;
+  await fetch(`/api/github?action=del&repo=${encodeURIComponent(gh.repo)}`,{
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({path:p})
+  });
+  pathEl.value=""; srcEl.value="";
+  await loadTree();
+}
+createFile.onclick = saveFile;
+deleteFile.onclick = removeFile;
 
-// UI
-plus.addEventListener("click", () => plusMenu.classList.toggle("show"));
-document.addEventListener("click", (e) => {
-  if (!plus.contains(e.target) && !plusMenu.contains(e.target)) plusMenu.classList.remove("show");
-});
-webToggle.addEventListener("change", setWebBadge);
+// Commit all “pending” changes (we commit per save; this can remain a no-op or trigger preview refresh)
+saveAll.onclick = ()=>{ alert("Committed! (Each save already commits). Your Cloudflare Pages build will pick it up."); };
 
-cleanBtn.addEventListener("click", () => {
-  messages = [];
-  chatEl.innerHTML = `<div class="bubble sys">New chat. Use the <b>+</b> to enable Web Search.</div>`;
-});
+// --- AI assist (optional) ---
+function addSourcePills(text){
+  srcBar.innerHTML="";
+  const urls = new Set();
+  const urlRe = /\bhttps?:\/\/[^\s)]+/g;
+  const mdRe = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  let m; while((m=urlRe.exec(text))) urls.add(m[0]);
+  while((m=mdRe.exec(text))) urls.add(m[2]);
+  urls.forEach(u=>{
+    const a=document.createElement("a"); a.href=u; a.target="_blank"; a.rel="noopener"; a.className="src-pill";
+    a.textContent=new URL(u).hostname.replace(/^www\./,"");
+    srcBar.append(a);
+  });
+}
+generate.onclick = async ()=>{
+  const prompt = promptEl.value.trim();
+  if(!prompt) return;
+  mdPlan(prompt);
+  const r = await fetch("/api/chat",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"openai/gpt-oss-120b",
+      messages:[{role:"user",content:`Generate minimal files for this app:\n${prompt}\nReturn a list of files with paths and their contents as fenced blocks like:\n---\npath: index.html\n\`\`\`html\n...\n\`\`\`\n---`}],
+      stream:false, web_search:true, temperature:1, top_p:1
+    })
+  });
+  if(!r.ok){ alert("Generator error "+r.status); return; }
+  const j = await r.json();
+  const content = j.choices?.[0]?.message?.content || "";
+  addSourcePills(content);
 
-// ---------- Local “Advanced Thinking” (client-only planner) ----------
-function localPlan(text, level = "medium") {
-  // naive verb-first decomposition, tuned for coding tasks
-  const maxSteps = level === "high" ? 8 : level === "low" ? 4 : 6;
-  // normalize
-  const sents = text
-    .replace(/[\r\n]+/g, " ")
-    .split(/(?<=[.!?])\s+/)
-    .filter(Boolean)
-    .slice(0, 5);
-
-  const verbs = ["design","plan","create","build","code","implement","write","refactor","debug","test","document","optimize","deploy","style","render","stream","fetch","parse","validate"];
-  const steps = [];
-  for (const s of sents) {
-    // pull inline actions
-    const parts = s.split(/,\s*|;\s*| and /i);
-    for (let p of parts) {
-      p = p.trim();
-      const v = verbs.find(vb => new RegExp(`\\b${vb}(?:ing|ed)?\\b`, "i").test(p));
-      if (v) steps.push(p.replace(/^\d+\.\s*/,""));
-    }
+  // Very simple parser: split on "---\npath: ..."
+  const parts = content.split("\n---").map(s=>s.trim()).filter(Boolean);
+  let created = 0;
+  for(const part of parts){
+    const m = part.match(/path:\s*(.+)\n```([\s\S]*?)\n```/);
+    if(!m) continue;
+    const p = m[1].trim();
+    const body = m[2];
+    pathEl.value = p; srcEl.value = body;
+    await saveFile(); created++;
   }
-  // backfill generic flow if empty
-  if (!steps.length) {
-    steps.push("Clarify requirements and inputs",
-               "Sketch data structures and API shape",
-               "Implement core logic in small functions",
-               "Add minimal UI and wire up events",
-               "Test with examples and edge cases",
-               "Polish, document, and ship");
+  alert(`Created/updated ${created} files`);
+  await loadTree();
+};
+
+// --- boot ---
+connect.onclick = login;
+logout.onclick = logoutFn;
+(async ()=>{
+  const me = await getMe();
+  if(me && me.login){
+    gh.user = me; show(logout,true);
+    gitBadge.textContent = `Git: ${me.login}`;
+    show(landing,false); show(builder,true);
+    await listRepos();
+  } else {
+    show(landing,true); show(builder,false);
   }
-  return steps.slice(0, maxSteps);
-}
-
-// --------------------------------------------------------------------
-
-async function send() {
-  const content = input.value.trim();
-  if (!content) return;
-
-  // user bubble
-  const u = document.createElement("div");
-  u.className = "msg";
-  u.innerHTML = md(content);
-  addBubble("user", u);
-  messages.push({ role: "user", content });
-
-  // AI bubble (sources + optional think + text; code added lazily)
-  const aiNode = document.createElement("div");
-  const sourcesBar = mkSourcesBar();
-  const msgDiv = document.createElement("div");
-  msgDiv.className = "msg";
-  aiNode.appendChild(sourcesBar);
-
-  // Always show our local planner (no Groq reasoning)
-  const plan = localPlan(content, reasonSel.value);
-  const think = thinkPanel();
-  think.querySelector("code").textContent = ["- " + plan.join("\n- ")].join("\n");
-  aiNode.appendChild(think);
-
-  aiNode.appendChild(msgDiv);
-  addBubble("ai", aiNode);
-
-  let inCode = false;
-  let codeWrap = null;
-  let codeNode = null;
-  const foundLinks = new Set();
-
-  // request
-  sendBtn.disabled = true; stopBtn.style.display = "inline-block";
-  abortCtrl = new AbortController();
-
-  const body = {
-    model: modelSel.value,
-    // no reasoning_effort at all
-    // web search still available
-    web_search: webToggle.checked,
-    messages,
-    temperature: 1,
-    top_p: 1,
-    stream: true
-  };
-
-  try {
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      body: JSON.stringify(body),
-      headers: { "Content-Type": "application/json" },
-      signal: abortCtrl.signal
-    });
-
-    if (!res.ok || !res.body) {
-      let tip;
-      if (res.status === 404) {
-        tip = "Server function not found (404). You must deploy a Git-based Pages project with /functions/api/chat.js at repo root.";
-      } else if (res.status === 429) {
-        tip = "Too many requests (429) to the upstream API. Slow down or check Groq rate limits.";
-      } else {
-        tip = `Request failed: ${res.status}`;
-      }
-      addBubble("sys", tip);
-      throw new Error(tip);
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    const pushLinksFrom = (text) => {
-      const urlRegex = /\bhttps?:\/\/[^\s)]+/g;
-      const mdRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
-      let m;
-      while ((m = urlRegex.exec(text))) {
-        const url = m[0];
-        if (foundLinks.has(url)) continue;
-        foundLinks.add(url);
-        const a = document.createElement("a");
-        a.href = url; a.target = "_blank"; a.rel = "noopener";
-        a.className = "src-pill";
-        a.textContent = new URL(url).hostname.replace(/^www\./, "");
-        sourcesBar.appendChild(a);
-      }
-      while ((m = mdRegex.exec(text))) {
-        const url = m[2];
-        if (foundLinks.has(url)) continue;
-        foundLinks.add(url);
-        const a = document.createElement("a");
-        a.href = url; a.target = "_blank"; a.rel = "noopener";
-        a.className = "src-pill";
-        a.textContent = m[1].slice(0, 28);
-        sourcesBar.appendChild(a);
-      }
-    };
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      for (;;) {
-        const idx = buffer.indexOf("\n\n");
-        if (idx < 0) break;
-        const raw = buffer.slice(0, idx).trim();
-        buffer = buffer.slice(idx + 2);
-        if (!raw.startsWith("data:")) continue;
-        const data = raw.slice(5).trim();
-        if (data === "[DONE]") break;
-
-        try {
-          const json = JSON.parse(data);
-          const delta = json.choices?.[0]?.delta?.content || "";
-          if (!delta) continue;
-
-          // source bubbles
-          pushLinksFrom(delta);
-
-          // code fences
-          if (delta.includes("```")) {
-            if (!inCode) {
-              inCode = true;
-              codeWrap = codeEmbed("Coding");
-              aiNode.appendChild(codeWrap);
-              codeNode = codeWrap.querySelector("code");
-              const stripped = delta.replace(/```[a-z0-9+_.-]*/i, "");
-              if (stripped.trim()) msgDiv.innerHTML += md(stripped);
-            } else {
-              inCode = false;
-              codeWrap.querySelector(".status").textContent = "Done";
-              const stripped = delta.replace(/```/g, "");
-              if (stripped.trim()) msgDiv.innerHTML += md(stripped);
-            }
-            continue;
-          }
-
-          if (inCode) {
-            codeWrap.querySelector(".status").textContent = "Writing…";
-            codeNode.textContent += delta;
-          } else {
-            msgDiv.innerHTML += md(delta);
-          }
-        } catch {}
-      }
-    }
-
-    const finalText =
-      msgDiv.textContent + (codeNode ? ("\n" + codeNode.textContent) : "");
-    messages.push({ role: "assistant", content: finalText.trim() });
-  } catch (e) {
-    // already surfaced via sys bubble
-  } finally {
-    sendBtn.disabled = false; stopBtn.style.display = "none"; input.value = "";
-    abortCtrl = null;
-  }
-}
-
-sendBtn.addEventListener("click", send);
-input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-});
-stopBtn.addEventListener("click", () => abortCtrl?.abort());
+})();
