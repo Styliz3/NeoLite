@@ -15,12 +15,34 @@ const cleanBtn = $("#clean");
 let abortCtrl = null;
 let messages = [];
 
-function addBubble(role, html) {
+// Minimal Markdown → HTML (headings, bold, italics, lists, inline code, links)
+function md(html) {
+  let t = html
+    // escape
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  // headings
+  t = t.replace(/^### (.*)$/gm, "<h3>$1</h3>")
+       .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+       .replace(/^# (.*)$/gm, "<h1>$1</h1>");
+  // lists
+  t = t.replace(/^\s*[-*] (.*)$/gm, "<li>$1</li>").replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
+  // bold/italic/inline code
+  t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+       .replace(/\*(.+?)\*/g, "<em>$1</em>")
+       .replace(/`([^`]+?)`/g, "<code>$1</code>");
+  // links [t](url)
+  t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, `<a href="$2" target="_blank" rel="noopener">$1</a>`);
+  // paragraphs
+  t = t.split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, "<br/>")}</p>`).join("");
+  return t;
+}
+
+function addBubble(role, nodeOrHTML) {
   const row = document.createElement("div");
   row.className = `row ${role}`;
   const b = document.createElement("div");
   b.className = `bubble ${role === "sys" ? "sys" : ""}`;
-  b.innerHTML = html;
+  if (typeof nodeOrHTML === "string") b.innerHTML = nodeOrHTML; else b.appendChild(nodeOrHTML);
   row.appendChild(b);
   chatEl.appendChild(row);
   chatEl.parentElement.scrollTop = chatEl.parentElement.scrollHeight;
@@ -36,17 +58,24 @@ function mkSourcesBar() {
 function codeEmbed(title = "Coding") {
   const wrap = document.createElement("div");
   wrap.className = "code-embed";
-  wrap.innerHTML = `<header><strong>${title}</strong><span class="status">Writing…</span></header><pre><code></code></pre>`;
+  wrap.innerHTML = `<header><strong>${title}</strong><span class="status">Writing…</span></header><pre class="block"><code></code></pre>`;
   return wrap;
 }
 
-function setWebBadge() { webBadge.textContent = `Web Search: ${webToggle.checked ? "On" : "Off"}`; }
+function thinkPanel() {
+  const d = document.createElement("details");
+  d.className = "think";
+  d.innerHTML = `<summary>Reasoning (advanced)</summary><pre><code>planning…</code></pre>`;
+  return d;
+}
+
+function setWebBadge() {
+  webBadge.textContent = `Web Search: ${webToggle.checked ? "On" : "Off"}`;
+}
 setWebBadge();
 
 // UI
-plus.addEventListener("click", () => {
-  plusMenu.classList.toggle("show");
-});
+plus.addEventListener("click", () => plusMenu.classList.toggle("show"));
 document.addEventListener("click", (e) => {
   if (!plus.contains(e.target) && !plusMenu.contains(e.target)) plusMenu.classList.remove("show");
 });
@@ -57,20 +86,52 @@ cleanBtn.addEventListener("click", () => {
   chatEl.innerHTML = `<div class="bubble sys">New chat. Use the <b>+</b> to enable Web Search.</div>`;
 });
 
+// “Advanced Thinking” instruction wrapper (client-side planner)
+function wrapThinkingPrompt(userText) {
+  // Ask the model to structure its output; we’ll show PLAN in the grey panel.
+  const system = {
+    role: "system",
+    content:
+`You are NeoLite, an elite coding assistant.
+When THINKING mode is on, first create a short structured plan:
+<PLAN>
+- Summary (one line)
+- Steps (numbered, concise)
+</PLAN>
+Then reply with clear Markdown for humans.
+If you include runnable code, use fenced blocks.
+Keep links explicit (markdown or full URLs).`
+  };
+  return { system, user: { role:"user", content:userText } };
+}
+
 async function send() {
   const content = input.value.trim();
   if (!content) return;
 
-  addBubble("user", `<div class="msg"></div>`).querySelector(".msg").textContent = content;
+  // user bubble
+  const u = document.createElement("div");
+  u.className = "msg";
+  u.innerHTML = md(content);
+  addBubble("user", u);
   messages.push({ role: "user", content });
 
-  // Create AI bubble (text area + sources bar, code added lazily)
-  const aiNode = addBubble("ai", "");
+  // AI bubble (text + sources + optional think panel + lazy code)
+  const aiNode = document.createElement("div");
+  const sourcesBar = mkSourcesBar();
   const msgDiv = document.createElement("div");
   msgDiv.className = "msg";
-  const sourcesBar = mkSourcesBar();
   aiNode.appendChild(sourcesBar);
+
+  // show thinking panel only for “Thinking” or “MultiTasking” models
+  let think = null;
+  if (modelSel.value !== "openai/gpt-oss-120b") {
+    think = thinkPanel();
+    aiNode.appendChild(think);
+  }
+
   aiNode.appendChild(msgDiv);
+  addBubble("ai", aiNode);
 
   let inCode = false;
   let codeWrap = null;
@@ -81,11 +142,18 @@ async function send() {
   sendBtn.disabled = true; stopBtn.style.display = "inline-block";
   abortCtrl = new AbortController();
 
+  // If in advanced modes, prepend a planning system message.
+  let bodyMessages = [...messages];
+  if (think) {
+    const { system } = wrapThinkingPrompt(content);
+    bodyMessages = [system, ...messages];
+  }
+
   const body = {
     model: modelSel.value,
     reasoning_effort: reasonSel.value,
     web_search: webToggle.checked,
-    messages,
+    messages: bodyMessages,
     temperature: 1,
     top_p: 1,
     stream: true
@@ -101,7 +169,7 @@ async function send() {
 
     if (!res.ok || !res.body) {
       const tip = res.status === 404
-        ? "Server function not found (404). Ensure the file exists at /functions/api/chat.js and redeploy."
+        ? "Server function not found (404). Ensure repo has /functions/api/chat.js at root and redeploy the production branch."
         : `Request failed: ${res.status}`;
       addBubble("sys", tip);
       throw new Error(tip);
@@ -110,12 +178,11 @@ async function send() {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let thinkBuf = ""; // capture <PLAN>…</PLAN> for the grey panel
 
     const pushLinksFrom = (text) => {
-      // Capture bare URLs and markdown [title](url)
       const urlRegex = /\bhttps?:\/\/[^\s)]+/g;
       const mdRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
-
       let m;
       while ((m = urlRegex.exec(text))) {
         const url = m[0];
@@ -158,27 +225,34 @@ async function send() {
           const delta = json.choices?.[0]?.delta?.content || "";
           if (!delta) continue;
 
-          // Links to pills
+          // capture PLAN for the grey panel if present
+          if (think) {
+            thinkBuf += delta;
+            const open = thinkBuf.indexOf("<PLAN>");
+            const close = thinkBuf.indexOf("</PLAN>");
+            if (open !== -1 && close !== -1) {
+              const inner = thinkBuf.slice(open + 6, close).trim();
+              think.querySelector("code").textContent = inner || "No plan.";
+            }
+          }
+
+          // link pills
           pushLinksFrom(delta);
 
-          // Lazy code block handling
+          // handle code fences lazily
           if (delta.includes("```")) {
-            // Start or end
-            const opening = /```([a-z0-9+-_.]*)?/i;
             if (!inCode) {
               inCode = true;
               codeWrap = codeEmbed("Coding");
               aiNode.appendChild(codeWrap);
               codeNode = codeWrap.querySelector("code");
-              // strip the opening fence from visible prose
-              const stripped = delta.replace(opening, "");
-              if (stripped.trim()) msgDiv.textContent += stripped;
+              const stripped = delta.replace(/```[a-z0-9+_.-]*/i, "");
+              if (stripped.trim()) msgDiv.innerHTML += md(stripped);
             } else {
               inCode = false;
               codeWrap.querySelector(".status").textContent = "Done";
-              // strip the closing fence
               const stripped = delta.replace(/```/g, "");
-              if (stripped.trim()) msgDiv.textContent += stripped;
+              if (stripped.trim()) msgDiv.innerHTML += md(stripped);
             }
             continue;
           }
@@ -187,18 +261,19 @@ async function send() {
             codeWrap.querySelector(".status").textContent = "Writing…";
             codeNode.textContent += delta;
           } else {
-            msgDiv.textContent += delta;
+            // stream markdown-ish text
+            // do a cheap append: convert only the latest chunk safely
+            msgDiv.innerHTML += md(delta);
           }
-        } catch {
-          // ignore parse errors for partial lines
-        }
+        } catch {}
       }
     }
 
-    const finalText = msgDiv.textContent + (codeNode ? ("\n" + codeNode.textContent) : "");
+    const finalText =
+      msgDiv.textContent + (codeNode ? ("\n" + codeNode.textContent) : "");
     messages.push({ role: "assistant", content: finalText.trim() });
   } catch (e) {
-    // already surfaced a system bubble above if needed
+    // surfaced via sys bubble already
   } finally {
     sendBtn.disabled = false; stopBtn.style.display = "none"; input.value = "";
     abortCtrl = null;
