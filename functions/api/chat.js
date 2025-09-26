@@ -1,10 +1,8 @@
-// Deploy path: /functions/api/chat.js  (root of repo)
-// Cloudflare will expose it at POST /api/chat
+// Path must be: /functions/api/chat.js  (repo root)
+// Exposes POST /api/chat
 export const onRequestPost = async ({ request, env }) => {
   const apiKey = env.GROQ_API_KEY;
-  if (!apiKey) {
-    return new Response("GROQ_API_KEY is missing", { status: 500 });
-  }
+  if (!apiKey) return new Response("GROQ_API_KEY is missing", { status: 500 });
 
   const {
     model,
@@ -39,7 +37,6 @@ export const onRequestPost = async ({ request, env }) => {
     body: JSON.stringify(payload)
   });
 
-  // Pass-through SSE / JSON
   return new Response(upstream.body, {
     status: upstream.status,
     headers: {
