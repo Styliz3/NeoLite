@@ -6,7 +6,7 @@
   <title>NeoLite</title>
   <style>
     :root{
-      --bg:#f3f5f8;
+      --bg:#eef1f5;
       --card:#ffffff;
       --fg:#0f172a;
       --muted:#6b7280;
@@ -15,12 +15,13 @@
       --accent:#111827;
       --link:#2563eb;
       --success:#10b981;
+      --highlight:#fff5a8;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
       margin:0; background:var(--bg); color:var(--fg);
-      font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;
+      font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;
       display:flex; flex-direction:column;
     }
 
@@ -48,27 +49,37 @@
     .row.ai{justify-content:flex-start}
     .bubble{
       max-width:85%; background:var(--card); border:1px solid var(--border);
-      border-radius:18px; padding:14px 16px; box-shadow:0 1px 2px rgba(0,0,0,.03)
+      border-radius:18px; padding:16px 18px; box-shadow:0 1px 2px rgba(0,0,0,.03)
     }
     .sys{background:#f3f4f6; color:#374151}
-    .msg{white-space:pre-wrap; word-break:break-word}
-    a{color:var(--link); text-decoration:none}
-    a:hover{text-decoration:underline}
+    .msg{line-height:1.7}
+    .msg h1,.msg h2,.msg h3{margin:.6em 0 .3em; line-height:1.25}
+    .msg h1{font-size:1.35rem} .msg h2{font-size:1.2rem} .msg h3{font-size:1.08rem}
+    .msg ul{margin:.2em 0 .7em 1.2em} .msg li{margin:.15em 0}
+    .msg p{margin:.5em 0}
+    .msg strong{background:var(--highlight); padding:0 .2em; border-radius:.2em}
+    .msg code{background:#f7f7fb; border:1px solid var(--border); padding:.1em .35em; border-radius:6px}
+    a{color:var(--link); text-decoration:none} a:hover{text-decoration:underline}
 
     /* Source pills */
-    .sources{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px}
+    .sources{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 10px}
     .src-pill{font-size:12px; padding:4px 8px; border-radius:999px; background:#eef6ff; color:#1e40af; border:1px solid #bfdbfe}
+
+    /* Thinking panel (collapsible grey) */
+    details.think{background:#f8fafc; border:1px solid var(--border); border-radius:14px; padding:10px 12px; margin:8px 0 10px}
+    details.think>summary{cursor:pointer; color:#374151}
+    details.think pre{background:#fff; border:1px solid var(--border); border-radius:10px; padding:10px; overflow:auto}
 
     /* Code embed */
     .code-embed{border-radius:14px; border:1px solid var(--border); overflow:hidden; margin-top:10px}
     .code-embed header{display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#fafafa; border-bottom:1px solid var(--border)}
     .status{font-size:12px; color:var(--muted)}
-    pre{margin:0; padding:14px; overflow:auto; background:#fcfcfc}
-    code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; white-space:pre; word-break:normal}
+    pre.block{margin:0; padding:14px; overflow:auto; background:#fcfcfc}
+    pre.block code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; white-space:pre; word-break:normal}
 
     /* Composer */
     .composer{position:fixed; left:0; right:0; bottom:0;
-      background:linear-gradient(180deg, rgba(243,245,248,0), var(--bg) 14%), var(--bg);
+      background:linear-gradient(180deg, rgba(238,241,245,0), var(--bg) 14%), var(--bg);
       border-top:1px solid var(--border)}
     .c-inner{max-width:960px; margin:0 auto; padding:12px 16px}
     .compose-row{display:flex; gap:10px; align-items:flex-end}
@@ -139,7 +150,7 @@
           <button class="btn primary" id="send">Send</button>
         </div>
       </div>
-      <div class="hint">Tip: Click <b>🧼 Clean</b> to start a new chat.</div>
+      <div class="hint">Tip: <b>🧼 Clean</b> starts a fresh chat. Bold text is softly highlighted for scannability.</div>
     </div>
   </div>
 
